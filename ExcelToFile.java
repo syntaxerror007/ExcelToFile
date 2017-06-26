@@ -1,6 +1,9 @@
 import javax.swing.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.Dimension;
+import java.awt.GridLayout;
+import javax.swing.filechooser.FileNameExtensionFilter;
 import java.io.*;
 import java.text.*;
 import java.util.*;
@@ -14,6 +17,8 @@ public class ExcelToFile extends JFrame {
 	public File fileToSave;
 	public CSVReader reader = null;
 	public FileReader fileReader;
+	public FileWriter fileWriter;
+	public BufferedWriter bufferedWriter;
 	List<String[]> competitions;
 	List<String[]> conferences;
 
@@ -34,6 +39,8 @@ public class ExcelToFile extends JFrame {
 	private static final int NOTES_INDEX = 14;
 
 	Map<Integer, String> mapColumnToName;
+
+	String absPath, parentPath;
 
 	Comparator comparator = new Comparator<String[]>() {
 										    @Override
@@ -57,46 +64,95 @@ public class ExcelToFile extends JFrame {
 	public static void main(String[] args) {
 		initFrame();
 		frame.initFrameComponents();
-		frame.openFile("");
-		frame.readAndClassifyPerLine();
-		frame.processCompetitions();
-		frame.processConferences();
 	}
 
 	public static void initFrame() {
 		frame = new ExcelToFile("Excel to File");
+		frame.setMinimumSize(new Dimension(500,300));
 		frameFileChooser = new JFrame("Choose file");
 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		frame.pack();
 		frame.setVisible(true);
 	}
  	public void initFrameComponents() {
+ 		JPanel parentPanel = new JPanel();
+ 		GridLayout gridLayoutParent = new GridLayout(2,1);
+ 		parentPanel.setLayout(gridLayoutParent);
 		JPanel panelTop = new JPanel();
-		JPanel panelChooseFile = new JPanel();
-
+		GridLayout gridLayout = new GridLayout(1,2);
+		panelTop.setMaximumSize(new Dimension(500,100));
+		panelTop.setLayout(gridLayout);
+		JPanel panelBottom = new JPanel();
 		JButton buttonSubmit = new JButton("Convert");
+		JButton buttonChooseFile = new JButton("Choose File");
+		JTextField textFieldPath = new JTextField();
+		textFieldPath.setMaximumSize(new Dimension(300,25));
+		FileNameExtensionFilter filter = new FileNameExtensionFilter("CSV files", "csv");
+		fc = new JFileChooser();
+		fc.setFileFilter(filter);
+		buttonChooseFile.addActionListener(
+			new ActionListener() {
+				@Override
+				public void actionPerformed(ActionEvent e) {
+					int returnVal = fc.showOpenDialog(ExcelToFile.this);
+					if (returnVal == JFileChooser.APPROVE_OPTION) {
+						absPath = fc.getSelectedFile().getAbsolutePath();
+						textFieldPath.setText(absPath);
+					}
+				}
+			}
+		);
+
 		buttonSubmit.addActionListener(
 			new ActionListener() {
 				@Override
 				public void actionPerformed(ActionEvent e) {
-					frameFileChooser.add(fc);
-					frameFileChooser.pack();
-					frameFileChooser.setVisible(true);
+					processFile(absPath);
 				}
 			}
 		);
-		fc = new JFileChooser();
-		panelTop.add(fc);
-		panelTop.add(buttonSubmit);
-		frame.add(panelTop);
+
+
+		GroupLayout layout =  new GroupLayout(parentPanel);
+		parentPanel.setLayout(layout);
+		layout.setAutoCreateGaps(true);
+		layout.setAutoCreateContainerGaps(true);
+
+		layout.setHorizontalGroup(
+			layout.createSequentialGroup()
+					.addComponent(buttonChooseFile)
+					.addGroup(layout.createParallelGroup(GroupLayout.Alignment.LEADING).addComponent(textFieldPath).addComponent(buttonSubmit))
+		);
+
+		layout.setVerticalGroup(
+			layout.createSequentialGroup()
+			.addGroup(layout.createParallelGroup(GroupLayout.Alignment.LEADING).
+					addComponent(buttonChooseFile).addComponent(textFieldPath))
+			.addComponent(buttonSubmit));
+		frame.add(parentPanel);
+		frame.pack();	
+	}
+
+	public void processFile(String absPath) {
+		openFile(absPath);
+		readAndClassifyPerLine();
+		processCompetitions();
+		processConferences();
+		close();
 	}
 
 	public void openFile(String fileAbsPath){
 		try {
-			fileReader = new FileReader("C:\\Users\\zxcma\\OneDrive\\Documents\\Projects\\file.csv");
+			File file = new File(absPath);
+			parentPath = file.getParent();
+			fileReader = new FileReader(absPath);
 			reader = new CSVReader(fileReader);
+			fileWriter = new FileWriter(parentPath+"\\output.txt", true);
+			bufferedWriter = new BufferedWriter(fileWriter);
 		} catch (FileNotFoundException e) {
 			e.printStackTrace();
+		} catch (IOException ex) {
+			ex.printStackTrace();
 		}
 	}
 
@@ -111,13 +167,7 @@ public class ExcelToFile extends JFrame {
 						initiateMapToColumnName(stringByColumn);
 						continue;
 					}
-					boolean haventPassed = true;
-					if (!isNullOrEmpty(stringByColumn[AKHIR_REGIS_INDEX])) {
-						
-					} else if (!isNullOrEmpty(stringByColumn[DEADLINE_INDEX])) {
-						
-					}
-					if (haventPassed) {
+					if (isEventPassed(stringByColumn)) {
 						classifyEvent(stringByColumn);
 					}
 				}
@@ -144,19 +194,25 @@ public class ExcelToFile extends JFrame {
 	}
 
 	public void processCompetitions() {
+		if (competitions.size() == 0) {
+			return;
+		}
 		Collections.sort(competitions, comparator);
-		System.out.println("COMPETITION:");
+		println("COMPETITION:");
 		for (int i = 0; i < competitions.size(); i++) {
 			String result = parseEvent(i+1, competitions.get(i));
-			System.out.println(result);
+			println(result);
 		}
 	}
 
 	public void processConferences() {
+		if (conferences.size() == 0) {
+			return;
+		}
 		Collections.sort(conferences, comparator);
-		System.out.println("CONFERENCE:");
+		println("CONFERENCE:");
 		for (int i = 0; i < conferences.size(); i++) {
-			System.out.println(parseEvent(i+1, conferences.get(i)));
+			println(parseEvent(i+1, conferences.get(i)));
 		}
 	}
 
@@ -188,53 +244,53 @@ public class ExcelToFile extends JFrame {
 		if (!isNullOrEmpty(content[NAMA_LOMBA_INDEX])) {
 			builder.append(mapColumnToName.get(NAMA_LOMBA_INDEX));
 			builder.append(": ");
-			builder.append(content[NAMA_LOMBA_INDEX]+"\n");
+			builder.append(content[NAMA_LOMBA_INDEX]+"\r\n");
 		}
 
 		//tema lomba
 		if (!isNullOrEmpty(content[TEMA_INDEX])) {
 			builder.append(mapColumnToName.get(TEMA_INDEX));
 			builder.append(": ");
-			builder.append(content[TEMA_INDEX]+"\n");
+			builder.append(content[TEMA_INDEX]+"\r\n");
 		}
 
 		//penyelenggara
 		if (!isNullOrEmpty(content[PENYELENGGARA_INDEX])) {
 			builder.append(mapColumnToName.get(PENYELENGGARA_INDEX));
 			builder.append(": ");
-			builder.append(content[PENYELENGGARA_INDEX]+"\n");
+			builder.append(content[PENYELENGGARA_INDEX]+"\r\n");
 		}
 
 		//Akhir Registrasi
 		if (!isNullOrEmpty(content[AKHIR_REGIS_INDEX])) {
 			builder.append(mapColumnToName.get(AKHIR_REGIS_INDEX));
 			builder.append(": ");
-			builder.append(formatToFullDate(content[AKHIR_REGIS_INDEX])+"\n");
+			builder.append(formatToFullDate(content[AKHIR_REGIS_INDEX])+"\r\n");
 		} else if (!isNullOrEmpty(content[DEADLINE_INDEX])) {
 			builder.append(mapColumnToName.get(DEADLINE_INDEX));
 			builder.append(": ");
-			builder.append(formatToFullDate(content[DEADLINE_INDEX])+"\n");
+			builder.append(formatToFullDate(content[DEADLINE_INDEX])+"\r\n");
 		}
 
 		//Tanggal Acara
 		if (!isNullOrEmpty(content[TANGGAL_ACARA_INDEX])) {
 			builder.append(mapColumnToName.get(TANGGAL_ACARA_INDEX));
 			builder.append(": ");
-			builder.append(content[TANGGAL_ACARA_INDEX]+"\n");
+			builder.append(content[TANGGAL_ACARA_INDEX]+"\r\n");
 		}
 
 		//website
 		if (!isNullOrEmpty(content[WEBSITE_INDEX])) {
 			builder.append(mapColumnToName.get(WEBSITE_INDEX));
 			builder.append(": ");
-			builder.append(content[WEBSITE_INDEX]+"\n");
+			builder.append(content[WEBSITE_INDEX]+"\r\n");
 		}
 
 		//email
 		if (!isNullOrEmpty(content[CONTACT_PERSON_INDEX])) {
 			builder.append(mapColumnToName.get(CONTACT_PERSON_INDEX));
 			builder.append(": ");
-			builder.append(content[CONTACT_PERSON_INDEX]+"\n");
+			builder.append(content[CONTACT_PERSON_INDEX]+"\r\n");
 		}
 
 		return builder.toString();
@@ -255,5 +311,47 @@ public class ExcelToFile extends JFrame {
     		}
     	}
     	return d1;
+	}
+
+	public boolean isEventPassed(String[] obj) {
+		boolean result = true;
+		Date currentDate = new Date();
+		DateFormat df = new SimpleDateFormat("MM/dd/yyyy");
+		if (!isNullOrEmpty(obj[AKHIR_REGIS_INDEX])) {
+			try {
+				Date date = df.parse(obj[AKHIR_REGIS_INDEX]);
+				result = currentDate.before(date);
+			} catch (ParseException e) {
+				result = false;
+			}
+		} else if (!isNullOrEmpty(obj[DEADLINE_INDEX])) {
+			try {
+				Date date = df.parse(obj[DEADLINE_INDEX]);
+				result = currentDate.before(date);
+			} catch (ParseException e) {
+				result = false;
+			}
+		}
+
+		return result;
+	}
+
+	public void println(String str) {
+		try {
+			System.out.println(str);
+			bufferedWriter.write(str+"\r\n");
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+
+	public void close() {
+		try {
+			fileReader.close();
+			bufferedWriter.close();
+			fileWriter.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
 	}
 }
