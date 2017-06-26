@@ -1,4 +1,0 @@
-Manifest-Version: 1.0
-Created-By: Martin
-Class-Path: ./opencsv.jar
-Main-Class: ExcelToFile
